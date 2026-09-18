@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        id: install
+        run: |
+          set -o pipefail
+          if [ "$(jq -r .broken_dependency chaos.json)" = "true" ]; then
+            npm install left-pad-but-typoed@99.9.9 2>&1 | tee -a ci.log
+          else
+            npm install 2>&1 | tee -a ci.log
+          fi
+
+      - name: Lint
+        id: lint
+        run: set -o pipefail; npm run lint 2>&1 | tee -a ci.log
+
+      - name: Test
+        id: test
+        run: set -o pipefail; npm test 2>&1 | tee -a ci.log
+
+      - name: Build
+        id: build
+        timeout-minutes: 2
+        run: set -o pipefail; npm run build 2>&1 | tee -a ci.log
+
+      - name: Alert the on-call channel
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          failed_step="unknown"
+          for s in install lint test build; do
+            case "$s" in
+              install) outcome="${{ steps.install.outcome }}" ;;
+              lint)    outcome="${{ steps.lint.outcome }}" ;;
+              test)    outcome="${{ steps.test.outcome }}" ;;
+              build)   outcome="${{ steps.build.outcome }}" ;;
+            esac
+            if [ "$outcome" = "failure" ]; then failed_step="$s"; break; fi
+          done
+
+          excerpt=$(tail -n 25 ci.log 2>/dev/null | sed 's/"/\\"/g' | sed 's/\t/  /g' || echo "no log captured")
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+          jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg branch "$GITHUB_REF_NAME" \
+            --arg sha "${GITHUB_SHA:0:8}" \
+            --arg actor "$GITHUB_ACTOR" \
+            --arg step "$failed_step" \
+            --arg url "$run_url" \
+            --arg excerpt "$excerpt" \
+            '{
+              text: ("[CI FAILED] \($repo) on \($branch) - stage: \($step)"),
+              blocks: [
+                { type: "header",
+                  text: { type: "plain_text", text: ":rotating_light: CI failed on \($branch)" } },
+                { type: "section",
+                  fields: [
+                    { type: "mrkdwn", text: "*Repo*\n\($repo)" },
+                    { type: "mrkdwn", text: "*Failed stage*\n`\($step)`" },
+                    { type: "mrkdwn", text: "*Commit*\n`\($sha)` by \($actor)" },
+                    { type: "mrkdwn", text: "*Run*\n<\($url)|view logs>" }
+                  ] },
+                { type: "section",
+                  text: { type: "mrkdwn", text: ("*Log tail*\n```" + $excerpt + "```") } }
+              ]
+            }' > payload.json
+
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL not set - payload that would have been posted:"
+            cat payload.json
+            exit 0
+          fi
+          curl -sS -X POST -H 'Content-type: application/json' \
+            --data @payload.json "$SLACK_WEBHOOK_URL"

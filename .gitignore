@@ -1,0 +1,5 @@
+node_modules/
+dist/
+ci.log
+payload.json
+chaos.tmp

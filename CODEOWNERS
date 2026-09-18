@@ -1,0 +1,6 @@
+# Who owns what. The on-call setup reads this to draft a routing tree.
+/src/pricing.js      @guilbill
+/src/cart.js         @guilbill
+/scripts/build.js    @guilbill
+/.github/workflows/  @guilbill
+/history/            @guilbill

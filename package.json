@@ -1,0 +1,14 @@
+{
+  "name": "oncall-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A deliberately fragile checkout service, used to exercise a Claude-assisted on-call",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "lint": "node scripts/lint.js",
+    "build": "node scripts/build.js",
+    "start": "node src/index.js"
+  }
+}
