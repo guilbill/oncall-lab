@@ -14,7 +14,9 @@ reset_all() {
   for f in "${FLAGS[@]}"; do
     jq --arg f "$f" '.[$f] = false' chaos.json > chaos.tmp && mv chaos.tmp chaos.json
   done
-  git checkout -- src/pricing.js 2>/dev/null || true
+  # The type_error commit lands in HEAD, so restoring from git brings the
+  # annotation straight back. Strip it textually instead.
+  sed -i 's|applyDiscount(amount: number, percent)|applyDiscount(amount, percent)|' src/pricing.js
 }
 
 case "$1" in
