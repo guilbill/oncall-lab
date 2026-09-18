@@ -1,6 +1,6 @@
 {
   "_comment": "Flip a flag to true, commit, and CI breaks in that specific way. One flag at a time keeps the failure signature clean.",
-  "flaky_checkout_test": false,
+  "flaky_checkout_test": true,
   "broken_dependency": false,
   "type_error": false,
   "slow_build": false
